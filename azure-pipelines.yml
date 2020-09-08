@@ -1,0 +1,25 @@
+name: "$(TeamProject)_$(Build.DefinitionName)_$(SourceBranchName)_$(Date:yyyy-MM-dd)$(Rev:.r)"
+
+trigger:
+  branches:
+    include:
+      - Users/*
+      - Development/*
+      - Test/*
+      - master
+
+jobs:
+  - template: common-dotnetcore.yml
+    parameters:
+      dotNetVersion: "3.1.x"
+      testProjects: "**/*Test.csproj"
+      # CollectCoverage': 'true'
+      # publishWebProjects': true
+      # publishTestResults': true
+      # zipAfterPublish': false
+      # CoverletOutputFormat: 'Cobertura'
+      # CoverletOutputDirectory: 'TestResults/Coverage/'
+      # codeCoverageReportPath: 'CodeCoverage'
+      vmImage: "windows-latest"
+      # testReportFileName: 'coverage.cobertura.xml'
+      # codeCoverageFileName: 'Cobertura.xml'

@@ -1,0 +1,107 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+parameters:
+  - name: "dotNetVersion"
+    default: "3.1.x"
+  - name: "testProjects"
+    default: "**/*.csproj"
+  - name: "CollectCoverage"
+    default: "true"
+  - name: "publishWebProjects"
+    default: true
+  - name: "publishTestResults"
+    default: true
+  - name: "zipAfterPublish"
+    default: false
+  - name: "CoverletOutputFormat"
+    default: "Cobertura"
+  - name: "CoverletOutputDirectory"
+    default: "TestResults/Coverage/"
+  - name: "codeCoverageReportPath"
+    default: "CodeCoverage"
+  - name: "vmImage"
+    default: "macOS-latest"
+  - name: "testReportFileName"
+    default: "coverage.cobertura.xml"
+  - name: "codeCoverageFileName"
+    default: "Cobertura.xml"
+
+jobs:
+  - job: Build
+    pool:
+      name: "Default"
+    #  vmImage: ${{ parameters.vmImage }}
+
+    variables:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      buildConfiguration: "Release"
+      dotNetVersion: "${{ parameters.dotNetVersion }}"
+      testProjects: "${{ parameters.testProjects }}"
+      CollectCoverage: "${{ parameters.CollectCoverage }}"
+      publishWebProjects: "${{ parameters.publishWebProjects }}"
+      publishTestResults: "${{ parameters.publishTestResults }}"
+      zipAfterPublish: "${{ parameters.zipAfterPublish }}"
+      CoverletOutputFormat: "${{ parameters.CoverletOutputFormat }}"
+      CoverletOutputDirectory: "$(Build.SourcesDirectory)/${{ parameters.CoverletOutputDirectory }}"
+      codeCoverageReportPath: "$(Build.SourcesDirectory)/${{ parameters.codeCoverageReportPath }}"
+      reportPath: "$(Build.SourcesDirectory)/**/${{ parameters.testReportFileName }}"
+      codeCoverageFile: "${{ parameters.codeCoverageReportPath }}/${{ parameters.codeCoverageFileName }}"
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+
+    steps:
+      - task: UseDotNet@2
+        displayName: "install dotnet version $(dotNetVersion)"
+        inputs:
+          version: "$(dotNetVersion)"
+          packageType: runtime
+
+      - script: dotnet build --configuration $(buildConfiguration)
+        displayName: "dotnet build $(buildConfiguration)"
+
+      - script: dotnet test --configuration $(buildConfiguration)
+        displayName: "dotnet test"
+
+      # - task: DotNetCoreCLI@2
+      #   displayName: 'dotnet test'
+      #   inputs:
+      #     command: 'test'
+      #     arguments: '--configuration $(buildConfiguration) /p:CollectCoverage=$(CollectCoverage) /p:CoverletOutputFormat=$(CoverletOutputFormat) /p:CoverletOutput=$(CoverletOutputDirectory)'
+      #     publishTestResults: $(publishTestResults)
+      #     projects: '$(testProjects)' # update with your test project directory
+      #     nobuild: true
+
+      # Generate the report using ReportGenerator (https://github.com/danielpalme/ReportGenerator)
+      # First install the tool on the machine, then run it
+      - script: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          reportgenerator -reports:$(reportPath) -targetdir:$(codeCoverageReportPath) -reporttypes:$(CoverletOutputFormat)
+        displayName: Create Code coverage report
+
+      # Publish the code coverage result (summary and web site)
+      # The summary allows to view the coverage percentage in the summary tab
+      # The web site allows to view which lines are covered directly in Azure Pipeline
+      # - task: PublishCodeCoverageResults@1
+      #   displayName: "Publish code coverage report"
+      #   inputs:
+      #     codeCoverageTool: $(CoverletOutputFormat)
+      #     summaryFileLocation: "$(codeCoverageFile)"
+      #     reportDirectory: "$(codeCoverageReportPath)"
+
+      - task: DotNetCoreCLI@2
+        displayName: "Publish application"
+        inputs:
+          command: "publish"
+          publishWebProjects: $(publishWebProjects)
+          projects: "**/*.csproj"
+          arguments: "--configuration $(BuildConfiguration) --output $(pathtoPublish)"
+          zipAfterPublish: $(zipAfterPublish)
+          modifyOutputPath: true
+
+      - task: PublishBuildArtifacts@1
+        displayName: "Upload Artifacts"
+        inputs:
+          pathtoPublish: "$(pathtoPublish)"
+          artifactName: "artifact"
